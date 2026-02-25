@@ -1,0 +1,6 @@
+{
+    // Desactiva las sugerencias inline solo para Python (útil para aprender)
+    "[python]": {
+        "editor.inlineSuggest.enabled": false
+    }
+}
