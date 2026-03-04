@@ -6,12 +6,14 @@ from typing import List, Tuple
 import pandas as pd
 import yfinance as yf
 
-
 def find_wick_plays(csv_path: str) -> List[Tuple[str, pd.Series, pd.Series]]:
     """Return list of (ticker, yesterday, today) for each Wick Play."""
-    tickers = (
-        pd.read_csv(csv_path)["ticker"].astype(str).str.strip().tolist()
-    )
+    
+    # ✅ Validación de existencia del CSV
+    if not os.path.isfile(csv_path):
+        raise FileNotFoundError(f"CSV not found: {csv_path}")
+
+    tickers = pd.read_csv(csv_path)["ticker"].astype(str).str.strip().tolist()
     print(f"Total tickers: {len(tickers)}")
 
     results: List[Tuple[str, pd.Series, pd.Series]] = []
@@ -33,9 +35,8 @@ def find_wick_plays(csv_path: str) -> List[Tuple[str, pd.Series, pd.Series]]:
 
                 upper_wick_start = max(yesterday["Open"], yesterday["Close"])
                 upper_wick_end = yesterday["High"]
-                wick_play = (today["Low"] >= upper_wick_start) and (
-                    today["High"] <= upper_wick_end
-                )
+                wick_play = (today["Low"] >= upper_wick_start) and (today["High"] <= upper_wick_end)
+                
                 if wick_play:
                     batch_results.append(ticker)
                     results.append((ticker, yesterday, today))
@@ -55,8 +56,7 @@ def find_wick_plays(csv_path: str) -> List[Tuple[str, pd.Series, pd.Series]]:
     print("\nCheck all the wick plays, chief! Good luck!")
     return results
 
-
-# --- optional Flask interface ------------------------------------------------
+# --- Flask interface ------------------------------------------------
 try:
     from flask import Flask, render_template_string
     import matplotlib.pyplot as plt
@@ -68,18 +68,9 @@ try:
     def candle_image(yesterday, today):
         fig, ax = plt.subplots(figsize=(2, 1.5))
         for idx, candle in enumerate((yesterday, today)):
-            o, c, h, l = (
-                candle["Open"],
-                candle["Close"],
-                candle["High"],
-                candle["Low"],
-            )
+            o, c, h, l = candle["Open"], candle["Close"], candle["High"], candle["Low"]
             color = "green" if c >= o else "red"
-            ax.add_patch(
-                patches.Rectangle(
-                    (idx - 0.3, min(o, c)), 0.6, abs(c - o) or 0.01, color=color
-                )
-            )
+            ax.add_patch(patches.Rectangle((idx - 0.3, min(o, c)), 0.6, abs(c - o) or 0.01, color=color))
             ax.plot([idx, idx], [l, h], color="black")
         ax.set_xlim(-0.5, 1.5)
         ax.axis("off")
@@ -91,6 +82,7 @@ try:
 
     @app.route("/")
     def index():
+        # ✅ siempre apunta al path del contenedor
         csv_path = os.environ.get("CSV_PATH", "/data/r3000_tickers.csv")
         results = find_wick_plays(csv_path)
         template = """
@@ -107,13 +99,10 @@ try:
           <p>No matches today.</p>
         {% endif %}
         </body></html>"""
-        return render_template_string(
-            template, results=results, candle_image=candle_image
-        )
+        return render_template_string(template, results=results, candle_image=candle_image)
 
 except ImportError:
     app = None
-
 
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -121,7 +110,6 @@ if __name__ == "__main__":
         port = int(os.environ.get("PORT", "5000"))
         app.run(host="0.0.0.0", port=port)
     else:
+        # ✅ path absoluto dentro del contenedor
         csv_path = os.environ.get("CSV_PATH", "/data/r3000_tickers.csv")
         _ = find_wick_plays(csv_path)
-
-
