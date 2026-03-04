@@ -91,7 +91,7 @@ try:
 
     @app.route("/")
     def index():
-        csv_path = os.environ.get("CSV_PATH", "r3000_tickers.csv")
+        csv_path = os.environ.get("CSV_PATH", "/data/r3000_tickers.csv")
         results = find_wick_plays(csv_path)
         template = """
         <html><head><title>Wick Plays</title></head><body>
@@ -121,7 +121,7 @@ if __name__ == "__main__":
         port = int(os.environ.get("PORT", "5000"))
         app.run(host="0.0.0.0", port=port)
     else:
-        csv_path = os.environ.get("CSV_PATH", "r3000_tickers.csv")
+        csv_path = os.environ.get("CSV_PATH", "/data/r3000_tickers.csv")
         _ = find_wick_plays(csv_path)
 
 
