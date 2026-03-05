@@ -10,6 +10,16 @@ def find_wick_plays_5d(csv_path: str) -> List[Tuple[str, pd.Series, pd.Series]]:
     """Return list of (ticker, yesterday, today) for each Wick Play in the last 5 days."""
     
     # ✅ Validación de existencia del CSV
+    print(f"Looking for CSV at: {csv_path}")
+    print(f"CSV exists: {os.path.isfile(csv_path)}")
+    
+    # Listar contenido del directorio del CSV para debug
+    csv_dir = os.path.dirname(csv_path)
+    if os.path.isdir(csv_dir):
+        print(f"Files in {csv_dir}: {os.listdir(csv_dir)}")
+    else:
+        print(f"Directory does not exist: {csv_dir}")
+    
     if not os.path.isfile(csv_path):
         raise FileNotFoundError(f"CSV not found: {csv_path}")
 
