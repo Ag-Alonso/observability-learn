@@ -6,20 +6,19 @@ from typing import List, Tuple
 import pandas as pd
 import yfinance as yf
 
+
 def find_wick_plays_5d(csv_path: str) -> List[Tuple[str, pd.Series, pd.Series]]:
     """Return list of (ticker, yesterday, today) for each Wick Play in the last 5 days."""
-    
-    # ✅ Validación de existencia del CSV
+
+    # CSV validation & diagnostics
     print(f"Looking for CSV at: {csv_path}")
     print(f"CSV exists: {os.path.isfile(csv_path)}")
-    
-    # Listar contenido del directorio del CSV para debug
-    csv_dir = os.path.dirname(csv_path)
+    csv_dir = os.path.dirname(csv_path) or "."
     if os.path.isdir(csv_dir):
         print(f"Files in {csv_dir}: {os.listdir(csv_dir)}")
     else:
         print(f"Directory does not exist: {csv_dir}")
-    
+
     if not os.path.isfile(csv_path):
         raise FileNotFoundError(f"CSV not found: {csv_path}")
 
@@ -36,31 +35,29 @@ def find_wick_plays_5d(csv_path: str) -> List[Tuple[str, pd.Series, pd.Series]]:
 
         for ticker in batch:
             try:
-                # Download last 5 days of OHLC data
-                df = yf.download(ticker, period="5d", interval="1d", progress=False)
-                
-                if len(df) < 2:
+                # Download with timeout to skip hanging requests
+                df = yf.download(ticker, period="5d", interval="1d", progress=False, timeout=5)
+                if df is None or len(df) < 2:
                     continue
 
-                # Loop through consecutive days to find wick plays
-                for j in range(1, len(df)):
-                    yesterday = df.iloc[j - 1]
-                    today = df.iloc[j]
+                # Convert to float array once
+                try:
+                    ohlc = df[["Open", "Close", "High", "Low"]].astype(float).values
+                except:
+                    continue
 
-                    # define upper wick range of yesterday
-                    upper_wick_start = max(yesterday["Open"], yesterday["Close"])
-                    upper_wick_end = yesterday["High"]
+                for j in range(1, len(ohlc)):
+                    o_y, c_y, h_y, _ = ohlc[j - 1]
+                    _, _, _, l_t = ohlc[j]
+                    h_t = ohlc[j][2]
 
-                    # wick play condition: today closes within yesterday's upper wick
-                    wick_play = (today["Low"] >= upper_wick_start) and (today["High"] <= upper_wick_end)
-                    
-                    if wick_play:
+                    upper_start = max(o_y, c_y)
+                    if (l_t >= upper_start) and (h_t <= h_y):
                         batch_results.append(ticker)
-                        results.append((ticker, yesterday, today))
-                        break  # stop checking this ticker once detected
+                        results.append((ticker, df.iloc[j - 1], df.iloc[j]))
+                        break
 
-            except Exception as e:
-                print(f"Error with {ticker}: {e}")
+            except Exception:
                 continue
 
         if batch_results:
@@ -74,6 +71,7 @@ def find_wick_plays_5d(csv_path: str) -> List[Tuple[str, pd.Series, pd.Series]]:
     print("\nCheck all the wick plays, chief! Good luck!")
     return results
 
+
 # --- Flask interface ------------------------------------------------
 try:
     from flask import Flask, render_template_string
@@ -86,7 +84,10 @@ try:
     def candle_image(yesterday, today):
         fig, ax = plt.subplots(figsize=(2, 1.5))
         for idx, candle in enumerate((yesterday, today)):
-            o, c, h, l = candle["Open"], candle["Close"], candle["High"], candle["Low"]
+            o = float(candle["Open"])
+            c = float(candle["Close"])
+            h = float(candle["High"])
+            l = float(candle["Low"])
             color = "green" if c >= o else "red"
             ax.add_patch(patches.Rectangle((idx - 0.3, min(o, c)), 0.6, abs(c - o) or 0.01, color=color))
             ax.plot([idx, idx], [l, h], color="black")
@@ -100,9 +101,11 @@ try:
 
     @app.route("/")
     def index():
-        # ✅ siempre apunta al path del contenedor
         csv_path = os.environ.get("CSV_PATH", "/data/r3000_tickers.csv")
-        results = find_wick_plays_5d(csv_path)
+        try:
+            results = find_wick_plays_5d(csv_path)
+        except Exception as e:
+            return f"<pre>Error: {e}</pre>", 500
         template = """
         <html><head><title>Wick Plays (5D)</title></head><body>
         <h1>Wick Play candidates (Last 5 Days)</h1>
@@ -122,12 +125,12 @@ try:
 except ImportError:
     app = None
 
+
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
     if app is not None:
         port = int(os.environ.get("PORT", "5000"))
         app.run(host="0.0.0.0", port=port)
     else:
-        # ✅ path absoluto dentro del contenedor
         csv_path = os.environ.get("CSV_PATH", "/data/r3000_tickers.csv")
         _ = find_wick_plays_5d(csv_path)
