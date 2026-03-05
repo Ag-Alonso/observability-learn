@@ -4,4 +4,5 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY wick-play-5d.py .
 EXPOSE 5000
-CMD ["python", "wick-play-5d"]
+CMD ["python", "wick-play-5d.py"]
+
