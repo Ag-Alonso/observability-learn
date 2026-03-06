@@ -249,6 +249,35 @@ It also supports the Docker Compose learning goal of working with both ephemeral
 
 ## Why This Project
 
+## Current Implementation (Step 1)
+
+The first working slice includes:
+
+- Docker Compose with two services: `app` and `db`
+- PostgreSQL as persistent storage (named volume: `pg_data`)
+- App ephemeral storage volume (named volume: `app_tmp`)
+- Minimal Python API with DB bootstrap and table creation
+- Endpoints:
+  - `GET /health`
+  - `POST /sessions`
+  - `GET /sessions?symbol=SPY&limit=25`
+
+### Run
+
+From project root (`docker_compose`):
+
+```bash
+docker compose up --build
+```
+
+### Quick Test
+
+```bash
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/sessions -H "Content-Type: application/json" -d "{\"symbol\":\"SPY\",\"date\":\"2026-03-05\",\"close_price\":505.12,\"volume\":72345678}"
+curl "http://localhost:8000/sessions?symbol=SPY&limit=25"
+```
+
 This project was chosen because it combines:
 
 - a real use case from a daily trading routine
