@@ -1,5 +1,4 @@
-# Observability learning process
-
+# Learning Observability 
 
 
 *Repository to practice the basics while building the foundations
@@ -9,12 +8,33 @@
 
 ## Main subjects:
 
+-GitHub
+
+-Containers
+
+-Infrastructure
+
+-Observability
+
+
+### Containers:
+
 -Command line
-
--Git and GitHub
-
 -Visual Studio code
-
 -Python
-
 -Docker
+-Docker Compose
+-Kubernetes
+
+
+### Infrastructure:
+
+-Terraform
+-Helm
+-AWS
+
+### Observability:
+-Logs / Traces / Metrics
+-Prometheus
+-Grafana
+-OpenTelemetry
