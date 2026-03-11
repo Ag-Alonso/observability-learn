@@ -29,6 +29,41 @@ def export_symbol_csvs(processed_df: pd.DataFrame) -> None:
         symbol_df.to_csv(output_path, index=False)
 
 
+def _extract_single_column(df: pd.DataFrame, column_name: str) -> pd.Series:
+    """
+    Return one clean Series for a logical column name.
+
+    Some upstream pandas/yfinance operations can produce duplicate column names.
+    In that case, df[column_name] becomes a DataFrame instead of a Series.
+    Here we collapse duplicates by taking the first non-null value across them.
+    """
+    column_data = df.loc[:, column_name]
+
+    if isinstance(column_data, pd.DataFrame):
+        return column_data.bfill(axis=1).iloc[:, 0]
+
+    return column_data
+
+
+def _normalize_input_dataframe(market_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build a clean input DataFrame with one column per required field.
+
+    This keeps the V1 logic unchanged while protecting the indicator code from
+    duplicate labels or multi-source formatting quirks in the raw input.
+    """
+    df = market_df.copy()
+
+    return pd.DataFrame(
+        {
+            "symbol": _extract_single_column(df, "symbol"),
+            "date": _extract_single_column(df, "date"),
+            "close_price": _extract_single_column(df, "close_price"),
+            "volume": _extract_single_column(df, "volume"),
+        }
+    )
+
+
 def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
     """
     Receive raw market data and return a DataFrame ready for DB insertion.
@@ -56,8 +91,9 @@ def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
             ]
         )
 
-    # Work on a copy to avoid changing the caller DataFrame.
-    df = market_df.copy()
+    # Normalize the input first so each required field is a single column.
+    # This guarantees that later group calculations work with one aligned Series.
+    df = _normalize_input_dataframe(market_df)
 
     # Ensure consistent order and types before any calculation.
     df["date"] = pd.to_datetime(df["date"])
@@ -65,10 +101,14 @@ def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
     df["close_price"] = df["close_price"].astype(float)
     df["volume"] = df["volume"].astype(float)
 
-    grouped = df.groupby("symbol", group_keys=False)
+    grouped = df.groupby("symbol")
 
-    # Daily price change in percentage: ((today - yesterday) / yesterday) * 100
-    df["price_change_pct"] = grouped["close_price"].pct_change() * 100
+    # Use transform(...) for group calculations that must come back as one
+    # aligned column. Each symbol is calculated independently, and pandas
+    # returns one value per original row in the same order as df.
+    df["price_change_pct"] = grouped["close_price"].transform(
+        lambda series: series.pct_change() * 100
+    )
 
     # V1 note: we intentionally skip 50-day average volume because
     # this version only works with the latest 25 sessions.
@@ -90,13 +130,10 @@ def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
     ).astype(int)
 
     # Rolling count of distribution days in the last 25 sessions.
-    df["distribution_count_25d"] = (
-        grouped["is_distribution_day"]
-        .rolling(window=25, min_periods=1)
-        .sum()
-        .reset_index(level=0, drop=True)
-        .astype(int)
+    df["distribution_count_25d"] = grouped["is_distribution_day"].transform(
+        lambda series: series.rolling(window=25, min_periods=1).sum()
     )
+    df["distribution_count_25d"] = df["distribution_count_25d"].astype(int)
 
     # Accumulated price change over the last 25 sessions.
     # For early rows (<25), we use the first available close as baseline.
