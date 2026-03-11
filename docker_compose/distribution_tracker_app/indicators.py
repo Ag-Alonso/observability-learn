@@ -1,8 +1,32 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
+
+
+TMP_DIR = Path("/tmp")
+
+
+def export_symbol_csvs(processed_df: pd.DataFrame) -> None:
+    """
+    Save one temporary CSV file per symbol in /tmp.
+
+    Example files:
+    - /tmp/SPY_indicators.csv
+    - /tmp/QQQ_indicators.csv
+    """
+    if processed_df.empty:
+        return
+
+    # Make sure the temporary directory exists before writing files.
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    for symbol in processed_df["symbol"].unique():
+        symbol_df = processed_df[processed_df["symbol"] == symbol].copy()
+        output_path = TMP_DIR / f"{symbol}_indicators.csv"
+        symbol_df.to_csv(output_path, index=False)
 
 
 def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
@@ -89,7 +113,7 @@ def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
     df["market_sentiment"] = None
 
     # Final column order, ready for db.upsert_sessions(...)
-    return df[
+    final_df = df[
         [
             "symbol",
             "date",
@@ -104,6 +128,11 @@ def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
             "market_sentiment",
         ]
     ]
+
+    # Also export one temporary CSV per symbol for debugging/learning purposes.
+    export_symbol_csvs(final_df)
+
+    return final_df
 
 
 def enrich_rows(symbol: str, rows: List[Dict]) -> List[Dict]:
