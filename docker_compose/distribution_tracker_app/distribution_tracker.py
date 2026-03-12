@@ -7,7 +7,7 @@ from db import get_connection, init_db, upsert_sessions
 from indicators import calculate_indicators
 
 SYMBOLS = ["SPY", "QQQ"]
-LOOKBACK_DAYS = 25
+LOOKBACK_DAYS = 26
 RAW_COLUMNS = ["symbol", "date", "close_price", "volume"]
 
 
@@ -21,7 +21,7 @@ def fetch_raw_daily_data(symbol: str, lookback_days: int = LOOKBACK_DAYS) -> pd.
     - close_price
     - volume
     """
-    # To get the latest 25 *trading sessions* (not calendar days),
+    # To get the latest 26 *trading sessions* (not calendar days),
     # download a slightly larger calendar window and keep the last rows.
     raw_df = yf.download(
         tickers=symbol,
@@ -104,7 +104,7 @@ def print_symbol_summary(enriched_df: pd.DataFrame, symbol: str) -> None:
         f"{symbol} | rows={rows_processed} | latest_date={latest_date} | "
         f"latest_distribution_count_25d={latest_distribution_count_25d} | "
         f"latest_price_change_accum_25d={latest_price_change_accum_25d:.2f}% | "
-        f"distribution_days_in_25={distribution_days_in_window}"
+        f"distribution_days_in_26={distribution_days_in_window}"
     )
 
 
@@ -113,7 +113,7 @@ def run_manual_v1_flow() -> None:
     Manual V1 execution flow:
     1) connect to PostgreSQL
     2) create table if needed
-    3) download latest 25 trading sessions for SPY and QQQ
+    3) download latest 26 trading sessions for SPY and QQQ
     4) calculate indicators
     5) save into PostgreSQL
     6) print terminal summary per symbol

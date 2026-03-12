@@ -7,6 +7,7 @@ import pandas as pd
 
 
 TMP_DIR = Path("/tmp")
+RECENT_WINDOW = 26
 
 
 def export_symbol_csvs(processed_df: pd.DataFrame) -> None:
@@ -129,16 +130,16 @@ def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
         (df["price_change_pct"] <= -0.20) & (df["volume"] > previous_volume)
     ).astype(int)
 
-    # Rolling count of distribution days in the last 25 sessions.
+    # Rolling count of distribution days in the latest recent window.
     df["distribution_count_25d"] = grouped["is_distribution_day"].transform(
-        lambda series: series.rolling(window=25, min_periods=1).sum()
+        lambda series: series.rolling(window=RECENT_WINDOW, min_periods=1).sum()
     )
     df["distribution_count_25d"] = df["distribution_count_25d"].astype(int)
 
-    # Accumulated price change over the last 25 sessions.
-    # For early rows (<25), we use the first available close as baseline.
+    # Accumulated price change over the same recent window.
+    # For early rows (<RECENT_WINDOW), we use the first available close as baseline.
     def _accum_change_25(series: pd.Series) -> pd.Series:
-        baseline = series.shift(24)
+        baseline = series.shift(RECENT_WINDOW - 1)
         baseline = baseline.fillna(series.iloc[0])
         return ((series - baseline) / baseline) * 100
 
