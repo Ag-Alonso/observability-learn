@@ -12,7 +12,8 @@ services:
       POSTGRES_PASSWORD: postgres
     tmpfs:
       - /tmp
-    command: sh -c "python distribution_tracker.py && tail -f /dev/null"
+    ports:
+      - "8000:8000"
 
   db:
     image: postgres:16

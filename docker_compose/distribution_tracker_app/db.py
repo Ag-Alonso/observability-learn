@@ -4,6 +4,7 @@ import os
 from typing import Any, Iterable, Mapping
 
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from psycopg2.extras import execute_values
 
 
@@ -124,3 +125,75 @@ def upsert_sessions(conn, rows: Iterable[Mapping[str, Any]]) -> None:
     except Exception:
         conn.rollback()
         raise
+
+
+def get_latest_sessions_by_symbols(conn, symbols: list[str]) -> list[dict[str, Any]]:
+    """
+    Return the latest stored row for each requested symbol.
+    """
+    if not symbols:
+        return []
+
+    query = """
+    SELECT DISTINCT ON (symbol)
+        symbol,
+        date,
+        distribution_count_25d,
+        price_change_accum_25d,
+        ema_10,
+        ema_20,
+        market_sentiment
+    FROM market_sessions
+    WHERE symbol = ANY(%s)
+    ORDER BY symbol, date DESC
+    """
+
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (symbols,))
+        rows = cur.fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def get_recent_sessions_by_symbol(conn, symbol: str, limit: int = 26) -> list[dict[str, Any]]:
+    """
+    Return recent stored rows for one symbol, ordered from oldest to newest.
+    """
+    query = """
+    SELECT
+        symbol,
+        date,
+        close_price,
+        ema_10,
+        ema_20
+    FROM market_sessions
+    WHERE symbol = %s
+    ORDER BY date DESC
+    LIMIT %s
+    """
+
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (symbol, limit))
+        rows = cur.fetchall()
+
+    return [dict(row) for row in reversed(rows)]
+
+
+def update_latest_sentiment(conn, symbol: str, sentiment: str) -> None:
+    """
+    Save manual sentiment on the latest stored row for one symbol.
+    """
+    query = """
+    UPDATE market_sessions
+    SET market_sentiment = %s
+    WHERE symbol = %s
+      AND date = (
+          SELECT MAX(date)
+          FROM market_sessions
+          WHERE symbol = %s
+      )
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query, (sentiment, symbol, symbol))
+    conn.commit()

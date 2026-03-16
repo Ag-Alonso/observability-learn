@@ -1,3 +1,7 @@
 pandas
 yfinance
 psycopg2-binary
+fastapi
+uvicorn
+plotly
+python-multipart
