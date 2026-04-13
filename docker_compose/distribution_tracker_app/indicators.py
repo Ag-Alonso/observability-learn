@@ -131,8 +131,27 @@ def calculate_indicators(market_df: pd.DataFrame) -> pd.DataFrame:
     ).astype(int)
 
     # Rolling count of distribution days in the latest recent window.
-    df["distribution_count_25d"] = grouped["is_distribution_day"].transform(
-        lambda series: series.rolling(window=RECENT_WINDOW, min_periods=1).sum()
+    # A distribution day is annulled (not counted) if the current session's
+    # close price is 5% or more above that distribution day's close price.
+    def _count_valid_dist_days(group_df: pd.DataFrame) -> pd.Series:
+        is_dist = group_df["is_distribution_day"].values
+        closes = group_df["close_price"].values
+        n = len(group_df)
+        counts = [0] * n
+
+        for i in range(n):
+            current_close = closes[i]
+            window_start = max(0, i - RECENT_WINDOW + 1)
+            for j in range(window_start, i + 1):
+                if is_dist[j] == 1:
+                    dist_close = closes[j]
+                    if current_close < dist_close * 1.05:
+                        counts[i] += 1
+
+        return pd.Series(counts, index=group_df.index)
+
+    df["distribution_count_25d"] = (
+        df.groupby("symbol", group_keys=False).apply(_count_valid_dist_days)
     )
     df["distribution_count_25d"] = df["distribution_count_25d"].astype(int)
 
